@@ -12,7 +12,7 @@ def prepare():
     model = Model()
     loss = model.add_var(lb=0, name="loss")
     for i in range(d+1):
-        model.add_var(var_type=INTEGER, lb=-10, ub=10, name=f"w{i}")  
+        model.add_var(var_type=INTEGER, lb=-10, ub=10, name=f"w{i}")
 
     model.objective = minimize(loss)  # Add the integer variables to the objective
     return model
