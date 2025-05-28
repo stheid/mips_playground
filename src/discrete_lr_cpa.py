@@ -7,6 +7,16 @@ from sklearn.datasets import load_iris
 from sklearn.linear_model import LogisticRegression
 import optax
 
+"""
+This is basically a reimlementation of risk-slim.
+
+It fits a logistic regression model with integer weights.
+The execution iteratively solves a MIP model and adds constraints to the model.
+The cuts are generated from the exact loss function and 
+    its gradient while the MIP solves the approximate loss function.
+"""
+
+
 def prepare():
     # --- MIP Model ---
     model = Model()
