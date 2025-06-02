@@ -1,4 +1,4 @@
-Binary Integer Logistic Regression ✔️
+Binary Integer Logistic Regression  
 Binary Integer Logistic Regression w/ Branch and Cut ✔️
 
 Multiclass Integer Logistic Regression

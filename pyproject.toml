@@ -3,11 +3,12 @@ name = "mips-playground"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python =  ">=3.10,<3.13"
 dependencies = [
     "jax>=0.6.0",
     "mip>=1.15.0",
     "optax>=0.2.4",
     "scikit-learn>=1.6.1",
     "tqdm>=4.67.1",
+    "scikit-psl@git+https://github.com/trr318/scikit-psl",
 ]

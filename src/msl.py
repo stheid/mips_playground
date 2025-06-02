@@ -21,14 +21,15 @@ from sklearn.datasets import load_iris
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 import optax
-
+from skpsl import MulticlassScoringList
 
 def prepare():
     # --- MIP Model ---
     model = Model()
 
     losses = [model.add_var(lb=0, name=f"loss{i}") for i in range(d + 1)]
-    [model.add_var(var_type=INTEGER, lb=-10, ub=10, name=f"w{i}") for i in range(d + 1)]
+    for j in range(c):
+        [model.add_var(var_type=INTEGER, lb=-3, ub=3, name=f"w{j},{i}") for i in range(d + 1)]
 
     model.objective = minimize(xsum(losses))
     return model
@@ -38,10 +39,10 @@ if __name__ == "__main__":
     # load iris dataset
     iris = load_iris()
     X = iris.data
+    X_raw = X.copy() 
     y = iris.target
-    X = X[y != 2]  # binary classification
-    y = y[y != 2]  # binary classification
     n, d = X.shape
+    c = len(np.unique(y))  # number of classes
 
     # Feature permutation (for example, from a random forest feature importance)
     rf = RandomForestClassifier(n_estimators=100, random_state=42)
@@ -55,7 +56,7 @@ if __name__ == "__main__":
 
     # --- JAX loss & gradient ---
     def logloss(w, X, y):
-        return optax.sigmoid_binary_cross_entropy(X @ w.T, y).mean() + 1e-5 * jnp.sum(
+        return optax.softmax_cross_entropy_with_integer_labels(X @ w.T, y).mean() + 1e-5 * jnp.sum(
             w**2
         )
 
@@ -65,11 +66,11 @@ if __name__ == "__main__":
     model.verbose = 0
 
     # while true with progress bar (iter is an infinite generator)
-    for _ in tqdm(iter(int, 1)):
+    for iter,_ in enumerate(tqdm(iter(int, 1))):
         model.optimize()
         w_vars = list(model.vars)[d + 1 :]
         w = [var.x for var in w_vars]
-        w_np = np.array(w)
+        w_np = np.array(w).reshape(c , -1)
         loss = 0
 
         # for each subset of features
@@ -82,26 +83,33 @@ if __name__ == "__main__":
 
             # add cut
             f = float(logloss(w_jnp, X_bias, y))
-            g = [float(val) for val in logloss_grad(w_jnp, X_bias, y)]
+            g = np.array(logloss_grad(w_jnp, X_bias, y)).flatten().astype(float)
+            # TODO: cleanup and verify the indexing
             model += model.vars[f"loss{i}"] >= f + xsum(
-                g[j] * (w_vars[j] - w[j]) for j in range(i + 1)
+                g[j] * (w_vars[j] - w[j]) for j in range(c * (i + 1))
             )
 
             loss += f
 
         opt_gap = 1 - model.objective_value / loss
-        if opt_gap < 1e-10:
+        if iter == 100:# or opt_gap < 1e-10:
             break
 
     # --- Output ---
     print("Learned losses:", [v.x for v in model.vars[: d + 1]])
-    print("Learned integer weights:", [v.x for v in model.vars[d + 1 :]])
+    print("Learned integer weights:\n", np.array([v.x for v in model.vars[d + 1 :]]).reshape(c, -1))
     print("Objective value:", model.objective_value, f)
     print()
 
-    lr = LogisticRegression(max_iter=100000, penalty=None)
+    lr = LogisticRegression(max_iter=100000, penalty=None, multi_class='multinomial')
     lr.fit(X, y)
-    print("Learned float weights:", lr.coef_[0])
-    print("Learned float bias:", lr.intercept_[0])
-    lr_w = np.hstack(([lr.intercept_[0]], lr.coef_[0]))
+    lr_w = np.hstack((lr.intercept_.reshape(-1,1), lr.coef_))
+    print("Learned float weights:\n", lr_w)
     print("Reference performance:", logloss(lr_w, X_bias, y))
+
+    msl = MulticlassScoringList(score_set=range(-3,4))
+    msl.fit(X, y)
+    w = msl.scores[:,[0]+(1+msl.f_ranks).tolist()]
+    X = np.hstack((np.ones((X_raw.shape[0], 1)), X))[:,[0]+(1+msl.f_ranks).tolist()]
+    print("Learned float weights:\n", w)
+    print("Reference performance:", logloss(w, X, y))
