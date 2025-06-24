@@ -28,6 +28,11 @@ def prepare():
     return model
 
 
+def logloss(w, X, y):
+    return optax.sigmoid_binary_cross_entropy(X@w.T, y).mean() + 1e-5 * jnp.sum(w**2)
+logloss_grad = grad(logloss)
+
+
 if __name__ == "__main__":
     # load iris dataset
     iris = load_iris()
@@ -38,11 +43,6 @@ if __name__ == "__main__":
     n, d = X.shape
 
     X_bias = np.hstack((np.ones((X.shape[0],1)), X))
-
-    # --- JAX loss & gradient ---
-    def logloss(w, X, y):
-        return optax.sigmoid_binary_cross_entropy(X@w.T, y).mean() + 1e-5 * jnp.sum(w**2)
-    logloss_grad = grad(logloss)
 
     model = prepare()
     model.verbose=0
